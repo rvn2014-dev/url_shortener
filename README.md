@@ -14,7 +14,7 @@ GET  /api/stats          →  top 20 links by clicks
 ## Quick start
 
 ```bash
-git clone <your-repo>
+git clone https://github.com/rvn2014-dev/url_shortener.git
 cd urlshort
 
 python -m venv .venv
@@ -184,9 +184,9 @@ sudo systemctl enable --now snip
 
 ## Extensions implemented
 
-- **I've got style** — Dark terminal-aesthetic UI (`JetBrains Mono`), responsive layout, custom-slug toggle, copy-to-clipboard, live stats table.
-- **Elephants never forget** — SQLite persistence via Python's built-in `sqlite3`; zero extra dependencies.
-- **Tried and tested** — 16 unit/functional tests in `test_app.py`.
+- **Styling** — Dark terminal-aesthetic UI (`JetBrains Mono`), responsive layout, custom-slug toggle, copy-to-clipboard, live stats table.
+- **DB Setup** — SQLite persistence via Python's built-in `sqlite3`; zero extra dependencies.
+- **Testing** — 16 unit/functional tests in `test_app.py`.
 
 ---
 
