@@ -15,7 +15,7 @@ GET  /api/stats          →  top 20 links by clicks
 
 ```bash
 git clone https://github.com/rvn2014-dev/url_shortener.git
-cd urlshort
+cd url_shortener/urlshort
 
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
