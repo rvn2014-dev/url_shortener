@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>snip — URL shortener</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Tokens ─────────────────────────────────────────────── */
+    :root {
+      --bg:       #0d0f12;
+      --surface:  #141720;
+      --border:   #252a35;
+      --accent:   #4ade80;        /* lime-green — the one bold choice */
+      --accent2:  #22d3ee;        /* cyan for secondary highlights */
+      --text:     #e2e8f0;
+      --muted:    #64748b;
+      --error:    #f87171;
+      --mono:     'JetBrains Mono', monospace;
+      --sans:     'Inter', system-ui, sans-serif;
+      --radius:   6px;
+      --trans:    180ms cubic-bezier(.4,0,.2,1);
+    }
+
+    /* ── Reset ──────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Layout ─────────────────────────────────────────────── */
+    .page {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 3rem 1.25rem 4rem;
+      gap: 2.5rem;
+    }
+
+    /* ── Header ─────────────────────────────────────────────── */
+    header {
+      text-align: center;
+    }
+    .logo {
+      font-family: var(--mono);
+      font-size: clamp(2rem, 6vw, 3.2rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      color: var(--text);
+      line-height: 1;
+    }
+    .logo span {
+      color: var(--accent);
+    }
+    .tagline {
+      margin-top: 0.6rem;
+      font-size: 0.9rem;
+      color: var(--muted);
+      font-family: var(--mono);
+      letter-spacing: 0.04em;
+    }
+
+    /* ── Card ───────────────────────────────────────────────── */
+    .card {
+      width: 100%;
+      max-width: 600px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) * 2);
+      padding: 2rem;
+    }
+
+    /* ── Form ───────────────────────────────────────────────── */
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    label {
+      font-size: 0.78rem;
+      font-family: var(--mono);
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    input[type="text"],
+    input[type="url"] {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.95rem;
+      padding: 0.7rem 1rem;
+      width: 100%;
+      outline: none;
+      transition: border-color var(--trans);
+    }
+    input[type="text"]:focus,
+    input[type="url"]:focus {
+      border-color: var(--accent);
+    }
+    input::placeholder { color: var(--muted); }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      margin-bottom: 1rem;
+      width: fit-content;
+    }
+    .toggle-row input[type="checkbox"] { display: none; }
+    .toggle-pill {
+      width: 36px; height: 20px;
+      background: var(--border);
+      border-radius: 10px;
+      position: relative;
+      transition: background var(--trans);
+      flex-shrink: 0;
+    }
+    .toggle-pill::after {
+      content: '';
+      position: absolute;
+      top: 3px; left: 3px;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: transform var(--trans), background var(--trans);
+    }
+    .toggle-row input:checked ~ .toggle-pill { background: var(--accent); }
+    .toggle-row input:checked ~ .toggle-pill::after {
+      transform: translateX(16px);
+      background: #fff;
+    }
+    .toggle-label {
+      font-size: 0.82rem;
+      font-family: var(--mono);
+      color: var(--muted);
+    }
+
+    /* custom slug field shows/hides */
+    #customField { display: none; }
+    #customField.visible { display: flex; }
+
+    .btn-submit {
+      width: 100%;
+      background: var(--accent);
+      color: #0d0f12;
+      border: none;
+      border-radius: var(--radius);
+      font-family: var(--mono);
+      font-size: 0.95rem;
+      font-weight: 700;
+      padding: 0.75rem 1rem;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      transition: opacity var(--trans), transform var(--trans);
+    }
+    .btn-submit:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+    .btn-submit:active:not(:disabled) { transform: translateY(0); }
+    .btn-submit:disabled { opacity: 0.4; cursor: default; }
+
+    /* ── Status messages ─────────────────────────────────────── */
+    .status {
+      margin-top: 1.25rem;
+      border-radius: var(--radius);
+      overflow: hidden;
+      display: none;
+    }
+    .status.visible { display: block; }
+    .status-error {
+      background: rgba(248,113,113,.08);
+      border: 1px solid rgba(248,113,113,.3);
+      padding: 0.85rem 1rem;
+      font-size: 0.875rem;
+      color: var(--error);
+      font-family: var(--mono);
+    }
+    .status-success {
+      background: rgba(74,222,128,.06);
+      border: 1px solid rgba(74,222,128,.25);
+      padding: 1rem 1.25rem;
+    }
+    .result-label {
+      font-size: 0.72rem;
+      font-family: var(--mono);
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.4rem;
+    }
+    .result-url {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .result-link {
+      font-family: var(--mono);
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--accent);
+      text-decoration: none;
+      word-break: break-all;
+      flex: 1;
+    }
+    .result-link:hover { text-decoration: underline; }
+    .btn-copy {
+      flex-shrink: 0;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      padding: 0.35rem 0.75rem;
+      cursor: pointer;
+      transition: border-color var(--trans), color var(--trans);
+      white-space: nowrap;
+    }
+    .btn-copy:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-copy.copied { border-color: var(--accent); color: var(--accent); }
+    .result-original {
+      margin-top: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+      font-family: var(--mono);
+      word-break: break-all;
+    }
+
+    /* ── Stats panel ─────────────────────────────────────────── */
+    .stats-section {
+      width: 100%;
+      max-width: 600px;
+    }
+    .stats-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+    .stats-title {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+    }
+    .btn-refresh {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      padding: 0.3rem 0.6rem;
+      cursor: pointer;
+      transition: border-color var(--trans), color var(--trans);
+    }
+    .btn-refresh:hover { border-color: var(--accent2); color: var(--accent2); }
+
+    .stats-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .stats-table th {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      text-align: left;
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .stats-table td {
+      padding: 0.6rem 0.75rem;
+      font-size: 0.83rem;
+      border-bottom: 1px solid rgba(37,42,53,0.6);
+      vertical-align: middle;
+    }
+    .stats-table tr:last-child td { border-bottom: none; }
+    .stats-table tbody tr {
+      transition: background var(--trans);
+    }
+    .stats-table tbody tr:hover { background: rgba(255,255,255,.025); }
+    .slug-cell {
+      font-family: var(--mono);
+      font-weight: 500;
+      color: var(--accent);
+    }
+    .slug-cell a { color: inherit; text-decoration: none; }
+    .slug-cell a:hover { text-decoration: underline; }
+    .original-cell {
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.77rem;
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .clicks-cell {
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      color: var(--accent2);
+      text-align: right;
+    }
+    .empty-stats {
+      text-align: center;
+      padding: 2rem;
+      font-family: var(--mono);
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    /* ── Spinner ─────────────────────────────────────────────── */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 0.4rem;
+    }
+
+    /* ── Footer ─────────────────────────────────────────────── */
+    footer {
+      text-align: center;
+      padding: 1.5rem;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── Responsive ─────────────────────────────────────────── */
+    @media (max-width: 480px) {
+      .card { padding: 1.5rem 1.25rem; }
+      .result-url { flex-direction: column; align-items: flex-start; }
+      .btn-copy { width: 100%; text-align: center; }
+    }
+
+    /* ── Reduced motion ─────────────────────────────────────── */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition: none !important; animation: none !important; }
+    }
+  </style>
+</head>
+<body>
+<main class="page">
+
+  <header>
+    <div class="logo">snip<span>.</span></div>
+    <div class="tagline">// paste long. get short.</div>
+  </header>
+
+  <!-- ── Shorten card ── -->
+  <div class="card">
+    <div class="field">
+      <label for="urlInput">Long URL</label>
+      <input
+        id="urlInput"
+        type="url"
+        placeholder="https://example.com/some/very/long/path"
+        autocomplete="off"
+        spellcheck="false"
+      />
+    </div>
+
+    <label class="toggle-row" for="customToggle">
+      <input type="checkbox" id="customToggle" />
+      <span class="toggle-pill"></span>
+      <span class="toggle-label">custom slug</span>
+    </label>
+
+    <div class="field" id="customField">
+      <label for="slugInput">Custom slug</label>
+      <input
+        id="slugInput"
+        type="text"
+        placeholder="my-custom-link"
+        maxlength="32"
+        autocomplete="off"
+        spellcheck="false"
+      />
+    </div>
+
+    <button class="btn-submit" id="submitBtn" onclick="shorten()">
+      Shorten URL
+    </button>
+
+    <div class="status" id="status"></div>
+  </div>
+
+  <!-- ── Stats ── -->
+  <section class="stats-section" id="statsSection">
+    <div class="stats-header">
+      <span class="stats-title">top links</span>
+      <button class="btn-refresh" onclick="loadStats()">↻ refresh</button>
+    </div>
+    <div id="statsContainer">
+      <div class="empty-stats">loading…</div>
+    </div>
+  </section>
+
+</main>
+
+<footer>snip. — built with Flask &amp; SQLite</footer>
+
+<script>
+  // ── Toggle custom slug field ──────────────────────────────
+  document.getElementById('customToggle').addEventListener('change', function() {
+    const f = document.getElementById('customField');
+    f.classList.toggle('visible', this.checked);
+    if (!this.checked) document.getElementById('slugInput').value = '';
+  });
+
+  // ── Shorten ───────────────────────────────────────────────
+  async function shorten() {
+    const urlInput  = document.getElementById('urlInput');
+    const slugInput = document.getElementById('slugInput');
+    const btn       = document.getElementById('submitBtn');
+    const statusEl  = document.getElementById('status');
+
+    const url    = urlInput.value.trim();
+    const custom = document.getElementById('customToggle').checked
+                   ? slugInput.value.trim()
+                   : '';
+
+    if (!url) {
+      showError('Enter a URL to shorten.');
+      urlInput.focus();
+      return;
+    }
+
+    // optimistic loading state
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>shortening…';
+    statusEl.className = 'status';
+
+    try {
+      const res = await fetch('/api/shorten', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, custom_slug: custom }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        showError(data.error || 'Something went wrong.');
+        return;
+      }
+
+      showSuccess(data);
+      loadStats();
+    } catch (err) {
+      showError('Network error. Is the server running?');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Shorten URL';
+    }
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('status');
+    el.className = 'status visible';
+    el.innerHTML = `<div class="status-error">⚠ ${escHtml(msg)}</div>`;
+  }
+
+  function showSuccess(data) {
+    const el = document.getElementById('status');
+    el.className = 'status visible';
+    el.innerHTML = `
+      <div class="status-success">
+        <div class="result-label">${data.reused ? 'already shortened' : 'your short link'}</div>
+        <div class="result-url">
+          <a class="result-link" href="${escHtml(data.short_url)}" target="_blank" rel="noopener">
+            ${escHtml(data.short_url)}
+          </a>
+          <button class="btn-copy" onclick="copyLink(this, '${escAttr(data.short_url)}')">
+            copy
+          </button>
+        </div>
+        <div class="result-original">↳ ${escHtml(data.original)}</div>
+      </div>`;
+  }
+
+  async function copyLink(btn, url) {
+    try {
+      await navigator.clipboard.writeText(url);
+      btn.textContent = 'copied!';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'copy'; btn.classList.remove('copied'); }, 2000);
+    } catch {
+      btn.textContent = 'error';
+    }
+  }
+
+  // ── Stats ─────────────────────────────────────────────────
+  async function loadStats() {
+    const container = document.getElementById('statsContainer');
+    try {
+      const res  = await fetch('/api/stats');
+      const rows = await res.json();
+
+      if (!rows.length) {
+        container.innerHTML = '<div class="empty-stats">No links yet. Shorten something!</div>';
+        return;
+      }
+
+      const tbody = rows.map(r => `
+        <tr>
+          <td class="slug-cell">
+            <a href="/${escHtml(r.slug)}" target="_blank" rel="noopener">/${escHtml(r.slug)}</a>
+          </td>
+          <td class="original-cell" title="${escAttr(r.original)}">${escHtml(r.original)}</td>
+          <td class="clicks-cell">${r.clicks.toLocaleString()}</td>
+        </tr>`).join('');
+
+      container.innerHTML = `
+        <table class="stats-table">
+          <thead>
+            <tr>
+              <th>slug</th>
+              <th>destination</th>
+              <th style="text-align:right">clicks</th>
+            </tr>
+          </thead>
+          <tbody>${tbody}</tbody>
+        </table>`;
+    } catch {
+      container.innerHTML = '<div class="empty-stats">Could not load stats.</div>';
+    }
+  }
+
+  // ── Keyboard shortcut: Enter to submit ───────────────────
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && document.activeElement?.tagName === 'INPUT') {
+      shorten();
+    }
+  });
+
+  // ── Escape helpers ────────────────────────────────────────
+  function escHtml(s) {
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+  function escAttr(s) { return escHtml(s); }
+
+  // ── Init ──────────────────────────────────────────────────
+  loadStats();
+  document.getElementById('urlInput').focus();
+</script>
+</body>
+</html>
